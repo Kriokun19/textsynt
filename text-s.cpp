@@ -57,7 +57,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPTSTR Cmd, int mod
 	HMENU hPopMenu=CreatePopupMenu();
 	AppendMenu(hPopMenu, MF_STRING, 101, _T("&New file"));
 	AppendMenu(hPopMenu, MF_STRING, 102, _T("&Open"));
-	AppendMenu(hPopMenu, MF_STRING, 103, _T("&Save as..."));
+	AppendMenu(hPopMenu, MF_STRING, 103, _T("&Save"));
 	AppendMenu(hPopMenu, MF_STRING, 104, _T("&Exit"));
 	AppendMenu(hMenu, MF_POPUP,(UINT) hPopMenu, _T("&File"));
 	SetMenu(hWnd, hMenu);
@@ -83,7 +83,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
 	Text.push_back(symb);
 	TCHAR part;
 	//static String text; //для хранения введенного текста
-	String buf;
 
 	static int cxChar, cyChar, cxClient, cyClient;
 	static int nCharPerLine, nClientLines;
@@ -97,7 +96,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
 	const long MaxSize = Text[0].max_size();
 
 	//раскраска
-	int uk=0;
+	int uk1=0, uk2=0;
 	size_t position;
 	struct pos{size_t posit;
 	           int len;
@@ -170,6 +169,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
 			yCaret=Text[str].size()/nCharPerLine;
 			SetCaretPos(xCaret, yCaret);
 			InvalidateRect(hWnd,NULL,TRUE);
+			break;
+		case 103: //Save
+			file.Flags = OFN_NOTESTFILECREATE;
+			if(!GetSaveFileName(&file)) return 1;
+			out.open(name);
+			for(i=0;i<=str;++i)
+				out << Text[i];
+			out.close();
 			break;
 		case 104: //Exit
 			 SendMessage(hWnd, WM_DESTROY, 1, 1);
@@ -264,14 +271,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
 					nTailChar = Text[str].size()%nCharPerLine; //посл строка
 					for(int h=0; h<=str; ++h){
 						for(y=0; y<nLines; ++y){
-							for(i=0;i<n && isPainted == true;++i){
-								pos0.posit = Text[h].find(KeyWord[i], uk);
-								if(pos0.posit != string::npos){
-									pos0.len = KeyWord[i].size();
-									uk = pos0.posit+pos0.len+1;
-									break;
+							if(isPainted == true){
+							pos0.posit = Text[h].find(KeyWord[0], uk1);
+							if(pos0.posit != string::npos){
+									pos0.len = KeyWord[0].size();
+									uk2 = pos0.posit+pos0.len+1;
 								}
 							}
+							for(i=1;i<n && isPainted == true;++i){
+								position = Text[h].find(KeyWord[i], uk1);
+								if(position != string::npos && position < pos0.posit){
+									pos0.posit = position;
+									pos0.len = KeyWord[i].size();
+									uk2 = pos0.posit+pos0.len+1;
+								}
+							}
+							uk1 = uk2;
 								if(pos0.posit/nCharPerLine>y || pos0.posit == string::npos){
 									SetTextColor(hdc, RGB(0,0,0));
 									TextOut(hdc, prev*cxChar, y*cyChar, Text[h].c_str()+y*nCharPerLine+prev, nCharPerLine-prev);
@@ -283,7 +298,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
 									TextOut(hdc, prev*cxChar, y*cyChar, Text[h].c_str()+y*nCharPerLine+prev,pos0.posit%nCharPerLine-prev);
 									SetTextColor(hdc, RGB(0,0,210));
 									TextOut(hdc, (pos0.posit%nCharPerLine)*cxChar, y*cyChar, Text[h].c_str()+pos0.posit, pos0.len);
-									prev = (uk-1)%nCharPerLine;
+									prev = (uk1-1)%nCharPerLine;
 									--y;
 									isPainted = true;
 								}
@@ -291,16 +306,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
 						}
 					pos0.posit = 1;
 					prev=0;
-					uk = y*nCharPerLine;
+					uk1 = y*nCharPerLine;
+					uk2 = uk1;
 					while(pos0.posit != string::npos){
-					for(i=0;i<n;++i){
-								pos0.posit = Text[str].find(KeyWord[i], uk);
-								if(pos0.posit != string::npos){
+						pos0.posit = Text[str].find(KeyWord[0], uk1);
+							if(pos0.posit != string::npos){
+									pos0.len = KeyWord[0].size();
+									uk2 = pos0.posit+pos0.len+1;
+							}
+					for(i=1;i<n;++i){
+								position = Text[str].find(KeyWord[i], uk1);
+								if(position != string::npos && position < pos0.posit){
+									pos0.posit = position;
 									pos0.len = KeyWord[i].size();
-									uk = pos0.posit+pos0.len+1;
-									break;
+									uk2 = pos0.posit+pos0.len+1;
 								}
 							}
+					uk1 = uk2;
 								if(pos0.posit == string::npos){
 									SetTextColor(hdc, RGB(0,0,0));
 									TextOut(hdc, prev*cxChar, y*cyChar, Text[0].c_str()+y*nCharPerLine+prev, nTailChar-prev);
@@ -311,7 +333,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
 									TextOut(hdc, prev*cxChar, y*cyChar, Text[0].c_str()+y*nCharPerLine+prev,pos0.posit%nCharPerLine-prev);
 									SetTextColor(hdc, RGB(0,0,200));
 									TextOut(hdc, (pos0.posit%nCharPerLine)*cxChar, y*cyChar, Text[0].c_str()+pos0.posit, pos0.len);
-									prev = (uk-1)%nCharPerLine;
+									prev = (uk1-1)%nCharPerLine;
 								}
 					}
 							/*TextOut(hdc, 0, y*cyChar, Text[h].c_str()+y*nCharPerLine, nCharPerLine);
@@ -324,8 +346,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
 				DeleteDC(hdcMem);*/
 				EndPaint(hWnd, &ps); 
 				break;
-		case WM_DESTROY: PostQuitMessage(0);
-		break;
+		case WM_DESTROY: 
+			PostQuitMessage(0);
+		    break;
 	//обработка сообщения по умолчанию
         default: 
 			return DefWindowProc(hWnd, message, wParam, lParam);
